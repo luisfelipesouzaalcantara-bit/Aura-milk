@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraMilk & Finance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; }
+        .hidden { display: none !important; }
+        
+        /* Auth Screen */
+        .auth-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%); padding: 20px; position: fixed; top: 0; left: 0; z-index: 2000; }
+        .auth-card { background: #1e293b; width: 100%; max-width: 380px; padding: 25px; border-radius: 16px; border: 1px solid #334155; }
+        .brand { text-align: center; margin-bottom: 20px; }
+        .brand i { font-size: 36px; color: #10b981; margin-bottom: 6px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px; background: none; border: none; color: #94a3b8; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab-btn.active { color: #10b981; border-bottom-color: #10b981; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+        .input-group input { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 8px; outline: none; }
+        .btn-primary { width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 5px; }
+
+        /* App Screen */
+        .app-layout { display: flex; width: 100%; height: 100vh; flex-direction: column; }
+        .topbar { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; background: #1e293b; }
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; padding-bottom: 80px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .metric-card { background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid #334155; }
+        .metric-card span { font-size: 11px; color: #94a3b8; display: block; }
+        .metric-card h3 { font-size: 18px; margin-top: 4px; }
+        .table-container { background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; margin-top: 15px; }
+        .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .data-table th, .data-table td { padding: 12px; border-bottom: 1px solid #334155; font-size: 13px; }
+        .data-table th { color: #94a3b8; font-size: 11px; }
+
+        /* Navigation */
+        .mobile-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
+        .mobile-nav button { background: none; border: none; color: #94a3b8; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .mobile-nav button.active { color: #10b981; }
+    </style>
+    <script>
+        // Funções globais carregadas no topo
+        var currentUser = null;
+        var milkData = [
+            { date: "10/10/2026", liters: 450, price: 2.80 },
+            { date: "11/10/2026", liters: 460, price: 2.80 }
+        ];
+        var txData = [
+            { desc: "Venda de Leite Lote 1", cat: "Venda Leite", val: 2520, type: "income" },
+            { desc: "Compra de Ração", cat: "Alimentação Animal", val: 1200, type: "expense" }
+        ];
+
+        function switchTab(tab) {
+            var loginForm = document.getElementById("login-form");
+            var regForm = document.getElementById("register-form");
+            var tabBtn1 = document.getElementById("tab-btn-1");
+            var tabBtn2 = document.getElementById("tab-btn-2");
+
+            if (tab === "login") {
+                loginForm.className = "";
+                regForm.className = "hidden";
+                tabBtn1.className = "tab-btn active";
+                tabBtn2.className = "tab-btn";
+            } else {
+                loginForm.className = "hidden";
+                regForm.className = "";
+                tabBtn1.className = "tab-btn";
+                tabBtn2.className = "tab-btn active";
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            currentUser = { name: "Fazenda Demo", email: document.getElementById("login-email").value };
+            openApp();
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            var name = document.getElementById("reg-name").value;
+            var email = document.getElementById("reg-email").value;
+            currentUser = { name: name, email: email };
+            openApp();
+        }
+
+        function openApp() {
+            document.getElementById("auth-screen").className = "auth-container hidden";
+            document.getElementById("app-screen").className = "app-layout";
+            document.getElementById("user-name-display").innerText = currentUser.name;
+            renderAll();
+        }
+
+        function logout() {
+            document.getElementById("auth-screen").className = "auth-container";
+            document.getElementById("app-screen").className = "app-layout hidden";
+        }
+
+        function showSection(secId) {
+            document.getElementById("sec-dashboard").className = "view-section hidden";
+            document.getElementById("sec-milk").className = "view-section hidden";
+            document.getElementById("sec-tx").className = "view-section hidden";
+            document.getElementById(secId).className = "view-section";
+        }
+
+        function addMilk() {
+            var liters = parseFloat(prompt("Litros produzidos hoje:", "450"));
+            var price = parseFloat(prompt("Preço por litro (R$):", "2.80"));
+            if (!isNaN(liters) && !isNaN(price)) {
+                milkData.push({ date: "Hoje", liters: liters, price: price });
+                renderAll();
+            }
+        }
+
+        function addTx(type) {
+            var desc = prompt("Descrição:");
+            var val = parseFloat(prompt("Valor (R$):"));
+            if (desc && !isNaN(val)) {
+                txData.push({ desc: desc, cat: type === 'income' ? 'Outros' : 'Despesa', val: val, type: type });
+                renderAll();
+            }
+        }
+
+        function renderAll() {
+            // Dashboard Calculations
+            var totalLiters = 0;
+            for (var i = 0; i < milkData.length; i++) {
+                totalLiters += milkData[i].liters;
+            }
+
+            var inc = 0, exp = 0;
+            for (var j = 0; j < txData.length; j++) {
+                if (txData[j].type === "income") inc += txData[j].val;
+                if (txData[j].type === "expense") exp += txData[j].val;
+            }
+
+            document.getElementById("lbl-liters").innerText = totalLiters + " L";
+            document.getElementById("lbl-income").innerText = "R$ " + inc.toFixed(2);
+            document.getElementById("lbl-expense").innerText = "R$ " + exp.toFixed(2);
+            document.getElementById("lbl-profit").innerText = "R$ " + (inc - exp).toFixed(2);
+
+            // Milk Table
+            var milkTb = document.getElementById("tb-milk");
+            milkTb.innerHTML = "";
+            for (var k = 0; k < milkData.length; k++) {
+                var m = milkData[k];
+                milkTb.innerHTML += "<tr><td>" + m.date + "</td><td>" + m.liters + " L</td><td>R$ " + m.price.toFixed(2) + "</td><td style='color:#10b981'>R$ " + (m.liters * m.price).toFixed(2) + "</td></tr>";
+            }
+
+            // Tx Table
+            var txTb = document.getElementById("tb-tx");
+            txTb.innerHTML = "";
+            for (var l = 0; l < txData.length; l++) {
+                var t = txData[l];
+                var color = t.type === "income" ? "#10b981" : "#ef4444";
+                txTb.innerHTML += "<tr><td>" + t.desc + "</td><td>" + t.cat + "</td><td style='color:" + color + "'>R$ " + t.val.toFixed(2) + "</td></tr>";
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen" class="auth-container">
+        <div class="auth-card">
+            <div class="brand">
+                <i class="fa-solid fa-cow"></i>
+                <h2>AuraMilk</h2>
+                <p style="font-size: 12px; color: #94a3b8;">Gestão Pecuária Leiteira</p>
+            </div>
+            <div class="tabs">
+                <button type="button" id="tab-btn-1" class="tab-btn active" onclick="switchTab('login')">Entrar</button>
+                <button type="button" id="tab-btn-2" class="tab-btn" onclick="switchTab('register')">Criar Conta</button>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label>E-mail</label>
+                    <input type="email" id="login-email" required value="produtor@leite.com">
+                </div>
+                <div class="input-group">
+                    <label>Senha</label>
+                    <input type="password" required value="123456">
+                </div>
+                <button type="submit" class="btn-primary">Acessar Sistema</button>
+            </form>
+
+            <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+                <div class="input-group">
+                    <label>Nome do Produtor / Fazenda</label>
+                    <input type="text" id="reg-name" required placeholder="Fazenda Santa Rita">
+                </div>
+                <div class="input-group">
+                    <label>E-mail</label>
+                    <input type="email" id="reg-email" required placeholder="seu@email.com">
+                </div>
+                <div class="input-group">
+                    <label>Senha</label>
+                    <input type="password" required placeholder="Mínimo 6 caracteres">
+                </div>
+                <button type="submit" class="btn-primary">Criar Minha Conta</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- APP SCREEN -->
+    <div id="app-screen" class="app-layout hidden">
+        <header class="topbar">
+            <div>
+                <strong id="user-name-display" style="font-size: 14px;">Fazenda</strong>
+                <span style="font-size: 10px; color: #10b981; display: block;">Produtor Ativo</span>
+            </div>
+            <button onclick="logout()" style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;"><i class="fa-solid fa-power-off"></i></button>
+        </header>
+
+        <main class="main-content">
+            <!-- DASHBOARD -->
+            <section id="sec-dashboard" class="view-section">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span>Leite Produzido</span>
+                        <h3 id="lbl-liters" style="color: #3b82f6;">0 L</h3>
+                    </div>
+                    <div class="metric-card">
+                        <span>Lucro Líquido</span>
+                        <h3 id="lbl-profit" style="color: #10b981;">R$ 0,00</h3>
+                    </div>
+                    <div class="metric-card">
+                        <span>Receitas Totais</span>
+                        <h3 id="lbl-income" style="color: #10b981;">R$ 0,00</h3>
+                    </div>
+                    <div class="metric-card">
+                        <span>Despesas Totais</span>
+                        <h3 id="lbl-expense" style="color: #ef4444;">R$ 0,00</h3>
+                    </div>
+                </div>
+            </section>
+
+            <!-- LEITE -->
+            <section id="sec-milk" class="view-section hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Produção de Leite</h3>
+                    <button class="btn-primary" onclick="addMilk()" style="width:auto; padding:6px 12px; font-size:12px;">+ Medição</button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr><th>Data</th><th>Litros</th><th>Preço/L</th><th>Total</th></tr></thead>
+                        <tbody id="tb-milk"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- FINANCEIRO -->
+            <section id="sec-tx" class="view-section hidden">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-primary" onclick="addTx('income')" style="background:#10b981; font-size:12px; padding:6px 12px;">+ Receita</button>
+                    <button class="btn-primary" onclick="addTx('expense')" style="background:#ef4444; font-size:12px; padding:6px 12px;">- Despesa</button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead>
+                        <tbody id="tb-tx"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <nav class="mobile-nav">
+            <button onclick="showSection('sec-dashboard')"><i class="fa-solid fa-house"></i><span>Início</span></button>
+            <button onclick="showSection('sec-milk')"><i class="fa-solid fa-glass-water"></i><span>Leite</span></button>
+            <button onclick="showSection('sec-tx')"><i class="fa-solid fa-wallet"></i><span>Caixa</span></button>
+        </nav>
+    </div>
+
+</body>
+</html>
